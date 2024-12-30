@@ -1,0 +1,31 @@
+AXIS-VERSION="2006";
+CREATION-DATE="20241226";
+CHARSET="ANSI";
+SUBJECT-AREA="Agregados del turismo: Serie contable";
+SUBJECT-CODE="03";
+MATRIX="03001";
+TITLE="Aportación del turismo al PIB de la economía española: por PIB y sus  componentes, valor absoluto/porcentaje/índice y periodo.";
+CONTENTS="A";
+CODEPAGE="iso-8859-15";
+DESCRIPTION="";
+COPYRIGHT=YES;
+NOTE="1) (P) estimación previsión # (A) estimación avance # '..'= dato no disponibl"
+"e";
+DECIMALS=1;
+SHOWDECIMALS=1;
+STUB="PIB y sus componentes","Valor absoluto/porcentaje/índice";
+HEADING="periodo";
+VALUES("PIB y sus componentes")="Gasto Turístico Interior","Consumo Turístico Interior",
+"Valor Añadido Bruto de las industrias turísticas (VABIT)",
+"Valor Añadido Bruto  directo turístico (VABDT)",
+"Producto Interior Bruto directo turístico (PIBDT)",
+"Producto interior bruto turístico";
+VALUES("Valor absoluto/porcentaje/índice")="Precios corrientes: Millones de euros",
+"Precios corrientes: Porcentaje sobre el PIB",
+"Precios constantes: Índices de volumen encadenados (referencia año 2015 = 100)";
+VALUES("periodo")="2022(A)","2021(P)","2020","2019","2018","2017","2016","2015";
+SOURCE="Instituto Nacional de Estadística";
+UNITS="valor absoluto/porcentaje/índice";
+DATA=146354.5 91735.1 56533.8 138622.6 132255.3 127895.6 115709.2 ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." 168024.3 107736.2 69664.0 158577.8 151910.4 145963.0 131668.9 ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." 212836.2
+ 191237.2 247454.6 238930.8 230996.4 221584.8 ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." 64490.8 54278.3 77663.3 74857.1 71127.0 64860.7 ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." ".." 67242.9 56592.8 84245.9
+ 81105.0 77015.5 72783.1 ".." ".." 5.5 5.1 6.8 6.7 6.6 6.5 ".." ".." ".." ".." ".." ".." ".." ".." ".." 155946.0 94127.5 66868.9 157355.0 147074.7 141053.4 126304.8 119185.4 11.6 7.7 6.0 12.6 12.2 12.1 11.3 11.1 117.7 74.2 54.0 119.7 116.2 114.2 106.8 100.0;

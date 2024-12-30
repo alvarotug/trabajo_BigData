@@ -1,0 +1,533 @@
+---
+title: |
+ ![](imagenes/avion.png){width=0.5in  style="opacity: 0.4;"}
+ "Turismo en España: Flujos, Perfil Turístico y Motivaciones"
+author: "Álvaro Tudela García (altugar@alumni.uv.es)"
+format:
+  html:
+    toc: true
+    toc-location: left
+    embed-resources: true
+  
+
+editor: source
+---
+
+## Introducción
+
+El turismo en España es uno de los *motores claves* de la economía. Desde la apertura al turismo internacional en los años 60, nuestro país es uno de los destinos preferidos por losa millones de visitantes que recibimos cada año, posicionándonos como uno de los **líderes mundiales en llegadas internacionales**. En este informe analizaremos, mediante gráficos y tablas, las tendencias turísticas de los últimos años, así como el perfil de los viajeros y qué los inspira a descubrir nuestro país.
+
+**El trabajo se estructura de la siguiente manera:**
+
+1.  Evolución llegada de turistas en los últimos años.
+
+2.  Motivos de viaje a nuestro país:
+
+-   Total en los últimos 9 años.
+-   Facet wrap por años.
+
+3.  Gasto medio por persona, según nacionalidad.
+
+4.  Tipo de alojamiento preferido por turistas nacionales e internacionales. Comparativa por años y comunidades.
+
+5. Vias de acceso.
+
+6. Datos macroeconómicos.
+
+7. Comunidades preferidas por los viajeros en 2023.
+
+8. Conclusiones.
+
+## Datos
+
+Todos los datos de mi trabajo los he extraido del [*Instituto Nacional de Estadística*](https://www.ine.es/), las tablas que nos ofrece el INE son muy extensas y con muchas observaciones, es por eso que hay mucho codigo de modificacion de los `data.frames`, para poder elegir los datos exactos con los que quería trabajar.
+
+Los datos se pueden cargar en la memoria de de R/RStudio de esta forma:
+
+```{r}
+
+library(tidyverse)
+library(ggthemes)
+library(gganimate)
+library(ggplot2)
+library(plotly)
+library(patchwork)
+library(gt)
+library(mapSpain)
+library(sf)
+library(scales)
+library(fmsb)
+
+```
+
+
+## 1.  Evolución llegada de turistas en los últimos años.
+
+```{r}
+
+my_url <- "https://www.ine.es/jaxiT3/files/t/es/px/10822.px?nocab=1"
+
+my_destino <- "./datos/23988.px"
+
+curl::curl_download(my_url, my_destino)
+
+df <- pxR::read.px(my_destino) %>% as.tibble()
+df<- janitor::clean_names(df)
+
+df_dicc <- pjpv.curso.R.2022::pjp_dicc(df)
+df_uniques <- pjpv.curso.R.2022::pjp_valores_unicos(df)
+
+rm(df_dicc, df_uniques)
+
+df <- df %>% 
+  mutate(fecha = lubridate::ym(periodo)) %>% 
+  mutate(anyo = lubridate::year(fecha)) %>% 
+  mutate(trimestre = lubridate::quarter(fecha))  %>% 
+  select(-periodo)  
+
+
+df_wide <- df %>% pivot_wider(names_from = tipo_de_dato, values_from = value) 
+
+df <- df_wide %>%
+  select(-`Tasa de variación anual`,
+         -`Acumulado en lo que va de año`,
+         -`Tasa de variación acumulada`)
+
+df <- df %>%
+  mutate(total_personas = `Dato base`)
+
+df <- df %>%
+  select(-`Dato base`,)
+
+df <- df %>% 
+  filter(pais_de_residencia != "Total")
+
+
+p <- ggplot(data = df, mapping = aes(x = fecha, y = total_personas, colour = pais_de_residencia)) + 
+  geom_line(size = 1) +
+  labs(title = "Evolución llegada de turistas según nacionalidad",
+       x = "Fecha",
+       y = "Número de personas",
+       color = "Nacionalidad") + 
+
+  scale_x_date(date_labels = "%Y", date_breaks = "1 year") +
+  theme_minimal() + 
+  theme(legend.position = "bottom",
+        legend.title = element_text(face = "bold"),
+        axis.text.x = element_text(angle = 45, hjust = 1)) 
+
+
+
+p <- ggplotly(p)
+
+p
+
+```
+
+Para elaborar los gráficos el procedimiento es el mismo siempre, primero descargo los datos del [INE](https://www.ine.es/), con el paquete `janitor` limpio los nombres, despúes los modifico según lo que necesite y creo el plot.
+
+Este gráfico muestra la evolución de llegadas a nuestro país por turistas internacionales en los últimos años. Es interactivo puesto que hay muchos países, si queremos ver información exacta sobre alguna nacionalidad de visitantes basta con poner el ratón sobre el color que indica la leyenda. 
+
+Como podemos observar a lo largo de estos últimos años, los datos son muy parecidos, los turistas británicos encabezan el rankig de llegadas a nuestro país, seguidos por los franceses y en tercer lugar los alemanes. Echando un vistazo al gráfico, a simple vista podemos observar que los datos presentan un patrón de estacionalidad, puesto que en los meses de verano vemos un pico de turistas, que luego decae en los meses de invierno. Otro punto interesante de este gráfico de líneas son los meses 4 y 5 del año 2020, puesto que hay 0 visitantes de cada nacionalidad, esto se debe al cierre de fronteras que originó el COVID-19, creando un gran agujero en la economía mundial y española, los meses posteriores fueron los turistas franceses los que más visitaron nuestro país, debido a la proximidad y la posibilidad de entrar por carretera.
+
+
+
+## 2.  Motivos de viaje a nuestro país:
+ 
+#### Total en los últimos 9 años.
+
+```{r}
+
+my_url1 <- "https://www.ine.es/jaxiT3/files/t/es/px/13864.px?nocab=1"
+
+my_destino1 <- "./datos/por_motivo1.px"
+
+curl::curl_download(my_url1, my_destino1)
+
+df1 <- pxR::read.px(my_destino1) %>% as.tibble()
+df1<- janitor::clean_names(df1)
+
+
+df1 <- df1%>%
+  filter(tipo_de_dato == "Dato base") %>%
+  filter(motivo_del_viaje != "Total")
+
+df_motivos <- df1 %>%
+  group_by(motivo_del_viaje) %>%
+  summarise(total_turistas = sum(value, na.rm = TRUE)) %>%
+  mutate(percentage = total_turistas / sum(total_turistas) * 100)  
+
+
+
+p1 <- ggplot(df_motivos, aes(x = "", y = total_turistas, fill = motivo_del_viaje)) + 
+  geom_bar(stat = "identity", width = 1) +  
+  coord_polar(theta = "y") + 
+  geom_text(aes(label = paste0(round(percentage, 1), "%")), 
+            position = position_stack(vjust = 0.5),  
+            color = "black", size = 5, fontface = "bold") +  
+  labs(title = "Motivos de visita de los Turistas") + 
+  theme_void() +  
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 20),  
+        legend.title = element_text(face = "bold"), 
+        legend.position = "right") +
+  scale_fill_manual(values =c ("#5CACEE", "#EE5C42", "#EE3A8C"))
+
+p1
+
+```
+
+Este gráfico circular representa los motivos de visita a nuestro país, la mayoría de turistas viene por ocio, recreo y vacaciones , tan solo un 6.1% viene por negocios y el resto por otros motivos. Estos datos pertenecen a los últimos 9 años, en el siguiente gráfico desglosaré por años las razones de visita, pero adelanto que son muy parecidos.
+
+
+
+#### Facet wrap por años:
+
+
+Aquí tenemos la división por años en gráficos de barras de las motivaciones de los visitantes para venir a España, muy similar al total calculado en el gráfico circular anterior:
+
+```{r}
+
+df1_anyos <- df1 %>% 
+  mutate(fecha = lubridate::ym(periodo)) %>% 
+  mutate(anyo = lubridate::year(fecha)) %>% 
+  mutate(trimestre = lubridate::quarter(fecha))  %>% 
+  select(-periodo)  
+
+
+df_motivos1 <- df1_anyos %>%
+  group_by(anyo, motivo_del_viaje) %>%
+  summarise(total_turistas = sum(value, na.rm = TRUE)) %>%
+  mutate(percentage = total_turistas / sum(total_turistas) * 100)  
+
+
+df_motivos1 <- df1_anyos %>%
+  group_by(anyo, motivo_del_viaje) %>%
+  summarise(total_turistas = sum(value, na.rm = TRUE)) %>%
+  mutate(percentage = 100 * total_turistas / sum(total_turistas)) %>%
+  ungroup()
+
+
+
+
+p1_anyos <- ggplot(df_motivos1, aes(x = as.factor(anyo), y = percentage, fill = motivo_del_viaje)) +
+  geom_bar(stat = "identity") +  
+  geom_text(
+    aes(label = paste0(round(percentage, 1), "%")), 
+    position = position_stack(vjust = 0.5),  
+    color = "black", size = 3  
+  ) +
+  labs(
+    title = "Motivo de Viaje de los Turistas por Año", 
+    x = "Año", 
+    y = "%", 
+    fill = "Motivo del Viaje"  
+  ) +
+  scale_fill_manual(values = c("#FFD39B", "#CDAA7D", "#8B7355")) +  
+  theme_minimal() + 
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "bottom",
+    panel.spacing = unit(1, "lines")
+  )
+
+p1_anyos
+
+
+```
+
+
+
+## 3.  Gasto medio por persona, según nacionalidad.
+
+```{r}
+
+mi_link_gasto <- "https://www.ine.es/jaxiT3/files/t/es/px/10838.px?nocab=1"
+
+
+my_destino_gasto <- "./datos/10838.px"
+
+curl::curl_download(mi_link_gasto, my_destino)
+
+df_gasto <- pxR::read.px(my_destino) %>% as.tibble()
+df_gasto<- janitor::clean_names(df_gasto)
+
+
+df_gasto <- df_gasto %>% 
+  mutate(fecha = lubridate::ym(periodo)) %>% 
+  mutate(anyo = lubridate::year(fecha)) %>% 
+  mutate(trimestre = lubridate::quarter(fecha))  %>% 
+  select(-periodo)  
+
+df_wide_gasto <- df_gasto %>% pivot_wider(names_from = tipo_de_dato, values_from = value) 
+
+df_wide_gasto <- df_wide_gasto %>%
+  select(-`Tasa de variación anual`,
+         -`Acumulado en lo que va de año`,
+         -`Tasa de variación acumulada`)
+
+
+df_wide_gasto <- df_wide_gasto %>% pivot_wider(names_from = gastos_y_duracion_media_de_los_viajes, values_from = `Dato base`)
+
+
+df_wide_gasto <- df_wide_gasto %>% select(-`Gasto total`,
+       -`Duración media de los viajes`, -`Gasto medio diario por persona`)
+
+
+
+p_gasto <- ggplot(df_wide_gasto, aes(x = pais_de_residencia, y = `Gasto medio por persona`)) +
+  geom_boxplot(fill = "lightgreen", color = "darkgreen") +
+  coord_flip() +
+  labs(
+    title = "Gasto Medio por Persona según País de Residencia",
+    x = "País de Residencia",
+    y = "Gasto Medio por Persona (€)"
+  ) +
+  theme_minimal()
+
+
+p_gasto1 <- p_gasto + geom_jitter(width = 0.2, alpha = 1/2, color = "brown")
+
+p_gasto1
+
+```
+
+
+Ahora vamos un con gráfico de caja o boxplot, como en el resto de plots, descargo los datos del [INE](https://www.ine.es/) y los arreglo para crear el gráfico de caja, y despues añado geom_jitter para mostrar la distribución individual del gasto medio por persona para cada nacionalidad. 
+
+Los turistas franceses e italianos son los que menor gasto medio tienen al visitar España, ya que por su proximidad geográfica pueden reducir los costes de transporte y alojamiento, además de tener una estancia más breve. Por otro lado, los turistas de los países nórdicos y otras partes del mundo tienden a tener un gasto medio más elevado debido a los mayores costes asociados a la distancia y duración de la visita. En todas las nacionalidades hay puntos en 0, esto es debido a la pandemia, ya que cuando cerramos nuestras fronteras, no pudieron visitarnos y por ende gastar en nuestro país.
+
+
+
+## 4.  Tipo de alojamiento preferido por turistas nacionales e internacionales. Comparativa por años y comunidades.
+
+```{r, fig.width=30, fig.height=25}
+
+my_link_alojamiento <- "https://www.ine.es/jaxiT3/files/t/es/px/3152.px?nocab=1"
+
+my_destino_alojamiento <- "./datos/3152.px"
+
+curl::curl_download(my_link_alojamiento, my_destino_alojamiento)
+
+df_alojamiento <- pxR::read.px(my_destino_alojamiento) %>% as.tibble()
+df_alojamiento <- janitor::clean_names(df_alojamiento)
+
+
+df_alojamiento <- df_alojamiento %>% 
+  mutate(fecha = lubridate::ym(periodo)) %>% 
+  mutate(anyo = lubridate::year(fecha)) %>% 
+  mutate(trimestre = lubridate::quarter(fecha))  %>% 
+  select(-periodo)  
+
+
+df_alojamiento <- df_alojamiento %>%
+  filter(anyo >= 2015) %>%
+  filter(residencia != "Total") %>%
+  filter(comunidades_y_ciudades_autonomas != "Total Nacional") %>%
+  filter(viajeros_y_pernoctaciones != "Pernoctaciones") %>%
+  select(-viajeros_y_pernoctaciones)
+
+
+
+
+p_alojamiento <- ggplot(df_alojamiento, aes(x = comunidades_y_ciudades_autonomas, y = value, fill = residencia)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  coord_flip() + 
+  facet_wrap(~ tipo_de_alojamiento, scales = "free_y") + 
+  labs( title = "Total Viajeros según tipo de alojamiento y residencia desde 2015 hasta octubre 2024",
+        x = "Comunidad Autónoma",
+        y = "Número de viajeros",
+        fill = "Residencia") +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+p_alojamiento
+
+```
+
+
+Aqui vemos, en un gráfico de barras horizontal, la comparativa del total de turistas nacionales (en color rojo) y visitantes internacionales (en azul), desde el año 2015, del tipo de alojamiento elegido para pasar su estancia, dividiendo por Comunidad Autónoma con un facet_wrap.
+
+Sin lugar a dudas, el alojamiento preferido por los turistas, tanto nacionales como internacionales son los hoteles, donde Cataluña, Islas Baleares y Andalucía destacan sobre el resto de las comunidades por la cantidad de turistas extranjeros que utilizan sus hoteles. En cuanto a los turistas nacionales, Andalucía, Cataluña y la Comunidad Valenciana lideran el ranking de hospedados en sus hoteles durante estos años recientes.
+
+En Cataluña, los campings también tienen mucho éxito entre los visitantes nacionales e internacionales, puesto que doblan en visitantes hospedados en ellos a casi todas las comunidades.
+
+En cuanto a los albergues, la comunidad más destacada es Galicia, esto se debe al munidalmente conocido **Camino de Santiago**, donde los peregrinos que recorren cientos de kilómetros para acabar visitando la Catedral de Santiago, se alojan en diversos albergues durante el recorrido.
+
+Por último cabe destacar de este gráfico que la Comunidad Valenciana, junto con ambos archipiélagos (canario y balear), son los reyes del apartamento turístico, que todos conocemos la gran controversia que causa entre los habitantes locales debido a la especulación y elevados alquileres que se pagan por ellos.
+
+
+## 5. Vias de acceso.
+
+
+
+```{r}
+
+
+my_link_via_acceso <- "https://www.ine.es/jaxiT3/files/t/es/px/10835.px?nocab=1"
+
+my_destino_via_acceso <- "./datos/10835.px"
+
+curl::curl_download(my_link_via_acceso, my_destino_via_acceso)
+
+df_via_acceso <- pxR::read.px(my_destino_via_acceso) %>% as.tibble()
+df_via_acceso <- janitor::clean_names(df_via_acceso)
+
+df_via_acceso <- df_via_acceso %>% 
+  mutate(fecha = lubridate::ym(periodo)) %>% 
+  mutate(anyo = lubridate::year(fecha)) %>% 
+  mutate(trimestre = lubridate::quarter(fecha))  %>% 
+  select(-periodo)  
+
+
+df_via_acceso <- df_via_acceso %>% 
+  pivot_wider(names_from = tipo_de_dato, values_from = value) %>%
+  select(-`Tasa de variación anual`,
+         -`Acumulado en lo que va de año`,
+         -`Tasa de variación acumulada`,
+         -`trimestre`,
+         -`fecha`) %>%
+  filter(via_de_acceso != "Total") %>%
+  rename(num_personas = `Dato base`) %>%
+  filter(!is.na(num_personas))
+
+
+
+df_via_acceso_perc <- df_via_acceso %>%
+  group_by(via_de_acceso) %>%
+  summarise(num_personas = sum(num_personas, na.rm = TRUE)) %>%
+  mutate(porcentaje = num_personas / sum(num_personas) )  #.- Como tiene que estar comprendido entre 0 y 1 no he multiplicado por 100 para hcer el porcentaje
+
+
+df_radar <- df_via_acceso_perc %>%
+  select(via_de_acceso, porcentaje) %>%
+  spread(via_de_acceso, porcentaje)  
+
+
+df_radar <- rbind(rep(1, ncol(df_radar)), rep(0, ncol(df_radar)), df_radar)
+
+
+radar_plot <- radarchart(df_radar, axistype = 1,
+                         pcol = "blue", pfcol = rgb(0.2, 0.6, 0.3, 0.5), plwd = 4,
+                         cglcol = "gray", cglty = 1, axislabcol = "gray",
+                         caxislabels = seq(0, 1, by = 0.2), vlcex = 0.8)
+
+
+title(main = "Distribución de Turistas por Tipo de Acceso (Normalizado entre 0 y 1)")
+
+
+
+```
+
+Este es un gráfico de **radar** o **araña**, en él he querido plasmar el porcentaje del tipo de acceso a nuestro país en los últimos años. Las principales vías de entrada son la aérea, con un 81% de los turistas accediendo a través de ella, y las carreteras, con un 16%. Como vías de acceso secundarias tenemos el tren con un 2% y por detrás de estas la vía marítima con solamente un 0,4%.
+
+## 6. Datos macroeconómicos.
+
+
+
+```{r}
+
+my_link_pib <- "https://www.ine.es/jaxi/files/_px/es/px/t35/p011/rev19/serie/l0/03001.px?nocab=1"
+
+my_destino_pib <- "./datos/03001.px"
+
+curl::curl_download(my_link_pib, my_destino_pib)
+
+df_pib <- pxR::read.px(my_destino_pib) %>% as.tibble()
+df_pib <- janitor::clean_names(df_pib)
+
+df_pib <- df_pib %>% drop_na()
+
+df_pib_wide <- df_pib %>% pivot_wider(names_from = periodo, values_from = value)
+df_pib_wide <- df_pib_wide %>% select( - `2022(A)`,
+                                       - `2015`) 
+
+tabla_pib <- df_pib_wide %>%
+  DT::datatable(filter = 'top', options = list( autoWidth = TRUE))
+
+tabla_pib
+
+
+```
+
+Aquí tenemos una serie de datos macroeconómicos que muestran la evolución de las distintas variables desde el año 2016 hasta 2021. En primer y segundo lugar tenemos el *Gasto y Consumo Turístico Interior* a precios corrientes en **millones de euros**. Restando el consumo al gasto obtenemos la balanza turística, si esta es positiva, el turismo proporcionará beneficios para nuestro país, si es negativa provocará pérdidas. En todos los años analizados, la balanza turistica es positiva, excepto en el año 2020 debido a las restricciones de entrada a España y el miedo a viajar posterior a la pandemia, pero aún así, el año siguiente volvimos a recuperar la positividad. El año con mayor consumo turístico fue 2019, por lo que podríamos deducir que la pandemia frenó un crecimiento exponencial del consumo turístico interior.
+
+Posteriormente observamos el *Valor Añadido Bruto de las industrias turísticas (VABIT)* (valor total que generan todas las actividades relacionadas con el turismo en un país, como transporte, alojamiento, restaurantes, etc. Mide cuánto aporta el turismo a la economía en general) y el *Valor Añadido Bruto directo turístico (VABDT)*  (Se refiere solo al valor generado directamente por las actividades turísticas, sin contar con los efectos indirectos en otras industrias) en millones de euros. Siguiendo las tendencias anteriores, desde el año 2016 crece paulatinamente hasta 2020, donde decaen significativamente para luego recuperarse poco a poco el siguiente año.
+
+Para mí, los datos más interesantes de esta tabla son los del *Producto interior bruto turístico en porcentaje del PIB*, estos datos muestran que el turismo representa aproximadamente un **12%** del PIB español, un porcentaje bastante elevado para el sector turístico, pero ya sabemos que este tiene un valor muy importante para la economía española. Desgraciadamente en el año 2020, cayó hasta un 5.1% del PIB.
+
+
+
+## 7. Comunidades preferidas por los viajeros en 2023.
+
+
+```{r}
+
+my_link_turistas_por_comunidad <- "https://www.ine.es/jaxiT3/files/t/es/px/23988.px?nocab=1"
+
+my_destino_turistas_por_comunidad <- "./datos/23988.px"
+
+curl::curl_download(my_link_turistas_por_comunidad, my_destino_turistas_por_comunidad)
+
+df_turistas_por_comunidad <- pxR::read.px(my_destino_turistas_por_comunidad) %>% as.tibble()
+df_turistas_por_comunidad <- janitor::clean_names(df_turistas_por_comunidad)
+
+df_turistas_por_comunidad <- df_turistas_por_comunidad %>% 
+  mutate(anyo = periodo)%>% 
+  select(-periodo) %>%
+  drop_na()
+df_turistas_por_comunidad$comunidades_autonomas <- gsub("^\\d+\\s", "", df_turistas_por_comunidad$comunidades_autonomas)
+
+
+df_wide_turistas_por_comunidad <- df_turistas_por_comunidad %>% pivot_wider(names_from = tipo_de_dato, values_from = value) %>%
+  select(-`Tasa de variación anual`) %>%
+          filter(comunidades_autonomas != "Total") 
+
+df_turistas_por_comunidad <- df_wide_turistas_por_comunidad %>%
+  filter(anyo == "2023") %>%
+  rename(total_personas = `Dato base`) %>%
+  select(- anyo)
+
+
+
+df_ccaa <- esp_get_ccaa() %>%
+  select(ine.ccaa.name, geometry) %>%
+  rename("comunidades_autonomas" = ine.ccaa.name) 
+
+df_mapa_turistas <- left_join(df_ccaa, df_turistas_por_comunidad, by = "comunidades_autonomas")
+
+
+p_turistas <- ggplot(df_mapa_turistas) +
+  geom_sf(aes(geometry = geometry, fill = `total_personas`)) + 
+  scale_fill_viridis_c(option = "warp", name = "Turistas recibidos", 
+                       labels = scales::comma) +
+  labs(title = "Turistas recibidos por Comunidad Autónoma en 2023",
+       caption = "Elaboración propia a partir de datos extraídos del INE") +
+  theme_minimal() +
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank(),
+        plot.caption = element_text(hjust = 0.5),
+        panel.grid = element_blank())
+
+p_turistas_inter <- ggplotly(p_turistas)
+
+p_turistas_inter
+
+
+```
+
+En esta corpoleta podemos ver cuáles han sido las comunidades que más turistas han recibido en el pasado 2023. Cataluña ha sido la primera con más de 18 millones de visitantes, seguida por las Islas Baleares, el archipiélago canario y Andalucía. Por el contrario, las ciudades autónomas Ceuta y Melilla, han sido las que menos turistas recibieron el pasado año. La he hecho interactiva con el paquete `plotly` para que puedan ver el número exacto de visitantes en cada comunidad. 
+
+
+## 8. Conclusiones.
+
+
+Después de tratar con tantos datos sobre el turismo y haber podido plasmarlos en gráficos, tablas y corpoletas, puedo concluir que es uno de los sectores más importantes, sino el más, acaparando un porcentaje del PIB español del 12%. Los turistas vienen a nuestro maravilloso país a disfrutar del clima, las playas, la gastronomía, las costumbres y de nosotros los españoles, por nuestra forma de ser, y los agradcemos con una cálida bienvenida. La parte negativa de depender tanto del turismo, recae en que cuando llegan problemas inesperados, como fue la pandemia del *COVID-19*, y no pudimos recibir visitantes, nuestra economía se desplomó más que la del resto de países desarrollados. Por eso debemos trabajar entre todos para hacer que nuestro turismo se desarrolle de una manera sostenible y en sintonía con el aumento del peso de otros sectores en el PIB.
+
+Sinceramente me han sorprendido muchos datos, como la cantidad de turistas recibidos por Comunidad Autónoma, con Cataluña recibiendo más de 18.000.000 de personas en un solo año, y las islas más de 14.000.000, no podía haber imaginado que eran tantos. O que más del 85% de visitantes son por ocio y vacaciones, y menos del 10% vienen por negocios o trabajo. 
+
+Analizar estos datos me ha hecho estar más cerca de este sector y aprender a manejarme mucho mejor en R y desarollar habilidaes analíticas para poder interpretar volúmenes de datos tan grandes para posteriormente interpretarlas.
+
+Espero que os haya gustado, ¡Muchas Gracias!
+
